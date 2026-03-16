@@ -1,6 +1,6 @@
-from apscheduler.schedulers.blocking import BlockingScheduler
+# from apscheduler.schedulers.blocking import BlockingScheduler
 
-from modules.action import run_crwaler
+from modules.action import run_crawler
 
 
-run_crwaler(headless=False)
+run_crawler(headless=False)
