@@ -118,9 +118,7 @@ async def playwright_action(
         if response and response.status == 404:
             raise ValueError("404 Page Not Found")
 
-        compound_name = await page.locator(
-            "//nav[@aria-label='breadcrumbs']/parent::*//h1"
-        ).inner_text()
+        compound_name = await page.locator("h1").first.inner_text()
 
         IUPAC_name = await parse_computed_descriptors(page, "IUPAC-Name")
         InChI = await parse_computed_descriptors(page, "InChI")
