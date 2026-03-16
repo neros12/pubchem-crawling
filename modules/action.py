@@ -90,10 +90,7 @@ async def parse_experimental_properties(
     return properties, available_properties
 
 
-async def playwright_action(
-    page: Page,
-    cid: int,
-) -> CrawledResult | None:
+async def playwright_action(page: Page, cid: int) -> CrawledResult | None:
     compound_name: str | None = None
     IUPAC_name: str | None = None
     InChI: str | None = None
