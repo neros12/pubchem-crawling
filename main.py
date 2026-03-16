@@ -1,6 +1,14 @@
-# from apscheduler.schedulers.blocking import BlockingScheduler
+import logging
+import asyncio
 
 from modules.action import run_crawler
 
 
-run_crawler(headless=False)
+logging.basicConfig(
+    filename="crawler.log",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    encoding="utf-8",
+)
+
+asyncio.run(run_crawler(headless=False))

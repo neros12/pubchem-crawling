@@ -11,6 +11,7 @@ class CheckPointDTO(TypedDict):
 
 BASE_PATH = Path(__file__).parents[1]
 CHECKPOINT_PATH = BASE_PATH / "checkpoint.json"
+DATA_PATH = BASE_PATH / "data"
 
 
 def update_checkpoint(cid: int):
@@ -25,9 +26,18 @@ def update_checkpoint(cid: int):
 
 def get_checkpoint() -> int:
     if not CHECKPOINT_PATH.exists():
-        return 0
+        return 1
 
     with open(CHECKPOINT_PATH, "r", encoding="utf-8") as f:
         data: CheckPointDTO = json.load(f)
 
-    return data.get("last_cid", 0)
+    return data.get("last_cid", 1)
+
+
+def save_data(l_cid, u_cid, data):
+    DATA_PATH.mkdir(parents=True, exist_ok=True)
+
+    file_path = DATA_PATH / f"{l_cid}-{u_cid}.jsonl"
+
+    with open(file_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii=False) + "\n")
