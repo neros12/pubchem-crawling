@@ -3,3 +3,4 @@ __pycache__/
 data/
 checkpoint.json
 *.log
+.python-version
