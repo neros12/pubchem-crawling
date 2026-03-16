@@ -11,4 +11,4 @@ logging.basicConfig(
     encoding="utf-8",
 )
 
-asyncio.run(run_crawler(headless=False))
+asyncio.run(run_crawler(headless=True))

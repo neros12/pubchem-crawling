@@ -122,7 +122,7 @@ async def playwright_action(
             "//nav[@aria-label='breadcrumbs']/parent::*//h1"
         ).inner_text()
 
-        IUPAC_name = await parse_computed_descriptors(page, "IUPAC-Named")
+        IUPAC_name = await parse_computed_descriptors(page, "IUPAC-Name")
         InChI = await parse_computed_descriptors(page, "InChI")
         SMILES = await parse_computed_descriptors(page, "SMILES")
         molecular_formula = await parse_computed_descriptors(page, "Molecular-Formula")
