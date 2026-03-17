@@ -1,7 +1,7 @@
 import logging
 from typing import TypedDict, Literal
 
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright, Page, Browser
 
 from . import utils as u
 
@@ -90,7 +90,7 @@ async def parse_experimental_properties(
     return properties, available_properties
 
 
-async def playwright_action(page: Page, cid: int) -> CrawledResult | None:
+async def playwright_action(browser: Browser, cid: int) -> CrawledResult | None:
     compound_name: str | None = None
     IUPAC_name: str | None = None
     InChI: str | None = None
@@ -108,8 +108,12 @@ async def playwright_action(page: Page, cid: int) -> CrawledResult | None:
         "Viscosity",
     ]
     crawled_result: CrawledResult | None = None
+    page = await browser.new_page()
     try:
-        response = await page.goto(f"https://pubchem.ncbi.nlm.nih.gov/compound/{cid}")
+        response = await page.goto(
+            f"https://pubchem.ncbi.nlm.nih.gov/compound/{cid}",
+            wait_until="networkidle",
+        )
         await page.wait_for_selector(".app-wrapper")
 
         if response and response.status == 404:
@@ -146,9 +150,12 @@ async def playwright_action(page: Page, cid: int) -> CrawledResult | None:
                 "available_properties": available_properties,
             }
 
-            return crawled_result
     except Exception as e:
         logging.info(f"CID {cid} has been skipped: {e}")
+
+    await page.close()
+
+    return crawled_result
 
 
 async def run_crawler(headless=True):
@@ -167,9 +174,8 @@ async def run_crawler(headless=True):
                 "--start-maximized",
             ],
         )
-        page = await browser.new_page()
         for cid in range(starting_cid, ending_cid + 1):
-            result = await playwright_action(page, cid)
+            result = await playwright_action(browser, cid)
 
             if result:
                 u.save_data(l_cid, u_cid, result)
@@ -178,9 +184,5 @@ async def run_crawler(headless=True):
                 u.update_checkpoint(cid)
                 l_cid = cid + 1
                 u_cid = l_cid + 9999
-
-            if cid % 500 == 0:
-                await page.close()
-                page = await browser.new_page()
 
         await browser.close()
