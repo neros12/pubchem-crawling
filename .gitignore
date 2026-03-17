@@ -1,6 +1,8 @@
 __pycache__/
 .venv/
 data/
+old_data/
 checkpoint.json
+log/
 *.log
 .python-version
