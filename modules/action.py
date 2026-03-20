@@ -1,188 +1,146 @@
-import logging
-from typing import TypedDict, Literal
-
-from playwright.async_api import async_playwright, Page, Browser
-
-from . import utils as u
-
-
-AvailablePropertyTag = Literal[
-    "Boiling-Point",
-    "Melting-Point",
-    "Flash-Point",
-    "Vapor-Pressure",
-    "Density",
-    "Viscosity",
-]
-
-AvailableProperties = Literal[
-    "boiling_point",
-    "melting_point",
-    "flash_point",
-    "vapor_pressure",
-    "density",
-    "viscosity",
-]
+from utils import http_request
+from parser import (
+    match_heading,
+    parse_computed_descriptors,
+    parse_experimental_properties,
+)
+from dto import CrawledData
 
 
-class ExperimentalProperty(TypedDict):
-    name: AvailableProperties
-    value: str
-    reference: str
+def get_pubchem_data(CID: int) -> CrawledData | None:
+    compound_name = None
+    IUPAC_name = None
+    InChI = None
+    SMILES = None
+    CASRN = None
+    experimental_property_data = []
+    available_properties = []
 
+    data = http_request(
+        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{CID}/JSON"
+    )
+    if data:
+        record = data["Record"]
 
-class CrawledResult(TypedDict):
-    CID: int
-    compound_name: str
-    IUPAC_name: str | None
-    InChI: str | None
-    SMILES: str | None
-    molecular_formula: str | None
-    CASRN: str | None
-    experimental_properties: list[ExperimentalProperty]
-    available_properties: list[AvailableProperties]
+        compound_name = record.get("RecordTitle")
+        record_section = record.get("Section")
+        references = record.get("Reference")
 
+        # ==================== Parse Names and Identifiers ====================
+        names_and_identifiers = match_heading("Names and Identifiers", record_section)
+        if names_and_identifiers:
+            names_and_identifiers_section = names_and_identifiers.get("Section")
 
-async def parse_computed_descriptors(page: Page, tag: str) -> str | None:
-    _locator = page.locator(f"#{tag}")
-    if await _locator.count() > 0:
-        _name = await _locator.locator("div.break-words.space-y-1").first.text_content()
-
-        return _name
-
-
-def convert_tag_to_name(tag: AvailablePropertyTag) -> AvailableProperties:
-    tag = tag.lower()  # type: ignore
-    tag = tag.replace("-", "_")  # type: ignore
-
-    return tag  # type: ignore
-
-
-async def parse_experimental_properties(
-    page: Page,
-    tag: AvailablePropertyTag,
-    properties: list[ExperimentalProperty],
-    available_properties: list[AvailableProperties],
-):
-    _locator = page.locator(f"#{tag}")
-    _property_name = convert_tag_to_name(tag)
-    _property: ExperimentalProperty | None = None
-
-    if await _locator.count() > 0:
-        available_properties.append(_property_name)
-        _inner_div = _locator.locator("div.px-1.py-3.space-y-2 > div")
-        _count = await _inner_div.count()
-        for i in range(_count):
-            _div = _inner_div.nth(i)
-            _div_class = await _div.get_attribute("class")
-
-            if _div_class == "break-words space-y-1":
-                _property = {"name": _property_name, "value": "", "reference": ""}
-                _property["value"] = await _div.inner_text()
-                continue
-
-            if _div_class == "pl-2 pb-4" and _property:
-                _property["reference"] = await _div.inner_text()
-                properties.append(_property)
-                _property = None
-                continue
-
-    return properties, available_properties
-
-
-async def playwright_action(browser: Browser, cid: int) -> CrawledResult | None:
-    compound_name: str | None = None
-    IUPAC_name: str | None = None
-    InChI: str | None = None
-    SMILES: str | None = None
-    molecular_formula: str | None = None
-    CASRN: str | None = None
-    experimental_properties: list[ExperimentalProperty] = []
-    available_properties: list[AvailableProperties] = []
-    property_tags: list[AvailablePropertyTag] = [
-        "Boiling-Point",
-        "Melting-Point",
-        "Flash-Point",
-        "Vapor-Pressure",
-        "Density",
-        "Viscosity",
-    ]
-    crawled_result: CrawledResult | None = None
-    page = await browser.new_page()
-    try:
-        response = await page.goto(
-            f"https://pubchem.ncbi.nlm.nih.gov/compound/{cid}",
-            wait_until="networkidle",
-        )
-        await page.wait_for_selector(".app-wrapper")
-
-        if response and response.status == 404:
-            raise ValueError("404 Page Not Found")
-
-        compound_name = await page.locator("h1").first.inner_text()
-
-        IUPAC_name = await parse_computed_descriptors(page, "IUPAC-Name")
-        InChI = await parse_computed_descriptors(page, "InChI")
-        SMILES = await parse_computed_descriptors(page, "SMILES")
-        molecular_formula = await parse_computed_descriptors(page, "Molecular-Formula")
-        CASRN = await parse_computed_descriptors(page, "CAS")
-
-        for property_tag in property_tags:
-            experimental_properties, available_properties = (
-                await parse_experimental_properties(
-                    page,
-                    property_tag,
-                    experimental_properties,
-                    available_properties,
-                )
+            computed_descriptors = match_heading(
+                "Computed Descriptors", names_and_identifiers_section
             )
+            if computed_descriptors:
+                computed_descriptors_section = computed_descriptors.get("Section")
+                IUPAC_name = parse_computed_descriptors(
+                    "IUPAC name", computed_descriptors_section
+                )
+                InChI = parse_computed_descriptors(
+                    "InChI", computed_descriptors_section
+                )
+                SMILES = parse_computed_descriptors(
+                    "SMILES", computed_descriptors_section
+                )
+
+            other_identifiers = match_heading(
+                "Other Identifiers", names_and_identifiers_section
+            )
+            if other_identifiers:
+                other_identifiers_section = other_identifiers.get("Section")
+                CASRN = parse_computed_descriptors("CAS", other_identifiers_section)
+
+        # ==================== Parse Chemical and Physical Properties ====================
+        chemical_and_physical_properties = match_heading(
+            "Chemical and Physical Properties", record_section
+        )
+        if chemical_and_physical_properties:
+            chemical_and_physical_properties_section = (
+                chemical_and_physical_properties.get("Section")
+            )
+            experimental_properties = match_heading(
+                "Experimental Properties",
+                chemical_and_physical_properties_section,
+            )
+            if experimental_properties:
+                experimental_properties_section = experimental_properties.get("Section")
+
+                boiling_point_parsed_result = parse_experimental_properties(
+                    "Boiling Point",
+                    experimental_properties_section,
+                    references,
+                )
+                if boiling_point_parsed_result:
+                    experimental_property_data.extend(boiling_point_parsed_result)
+                    available_properties.append("boiling_point")
+
+                melting_point_parsed_result = parse_experimental_properties(
+                    "Melting Point",
+                    experimental_properties_section,
+                    references,
+                )
+                if melting_point_parsed_result:
+                    experimental_property_data.extend(melting_point_parsed_result)
+                    available_properties.append("melting_point")
+
+                flash_point_parsed_result = parse_experimental_properties(
+                    "Flash Point",
+                    experimental_properties_section,
+                    references,
+                )
+                if flash_point_parsed_result:
+                    experimental_property_data.extend(flash_point_parsed_result)
+                    available_properties.append("flash_point")
+
+                density_parsed_result = parse_experimental_properties(
+                    "Density",
+                    experimental_properties_section,
+                    references,
+                )
+                if density_parsed_result:
+                    experimental_property_data.extend(density_parsed_result)
+                    available_properties.append("density")
+
+                vapor_density_parsed_result = parse_experimental_properties(
+                    "Vapor Density",
+                    experimental_properties_section,
+                    references,
+                )
+                if vapor_density_parsed_result:
+                    experimental_property_data.extend(vapor_density_parsed_result)
+                    available_properties.append("vapor_density")
+
+                vapor_pressure_parsed_result = parse_experimental_properties(
+                    "Vapor Pressure",
+                    experimental_properties_section,
+                    references,
+                )
+                if vapor_pressure_parsed_result:
+                    experimental_property_data.extend(vapor_pressure_parsed_result)
+                    available_properties.append("vapor_pressure")
+
+                viscosity_parsed_result = parse_experimental_properties(
+                    "Viscosity",
+                    experimental_properties_section,
+                    references,
+                )
+                if viscosity_parsed_result:
+                    experimental_property_data.extend(viscosity_parsed_result)
+                    available_properties.append("viscosity")
 
         if len(available_properties) > 0:
-            crawled_result = {
-                "CID": cid,
+            crawled_result: CrawledData = {
+                "CID": CID,
                 "compound_name": compound_name,
                 "IUPAC_name": IUPAC_name,
-                "CASRN": CASRN,
-                "molecular_formula": molecular_formula,
                 "InChI": InChI,
                 "SMILES": SMILES,
-                "experimental_properties": experimental_properties,
+                "CASRN": CASRN,
+                "properties": experimental_property_data,
                 "available_properties": available_properties,
             }
 
-    except Exception as e:
-        logging.info(f"CID {cid} has been skipped: {e}")
-
-    await page.close()
-
-    return crawled_result
-
-
-async def run_crawler(headless=True):
-    starting_cid = u.get_checkpoint()
-    ending_cid = 177929229
-
-    l_cid = (starting_cid // 10000) * 10000 + 1
-    u_cid = l_cid + 9999
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=headless,
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-infobars",
-                "--start-maximized",
-            ],
-        )
-        for cid in range(starting_cid, ending_cid + 1):
-            result = await playwright_action(browser, cid)
-
-            if result:
-                u.save_data(l_cid, u_cid, result)
-
-            if cid == u_cid:
-                u.update_checkpoint(cid)
-                l_cid = cid + 1
-                u_cid = l_cid + 9999
-
-        await browser.close()
+            return crawled_result
