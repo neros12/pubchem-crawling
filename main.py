@@ -1,12 +1,13 @@
 import os
-import asyncio
+import time
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-from modules.action import run_crawler
+from modules.action import get_pubchem_data
 
 
 os.makedirs("log", exist_ok=True)
+
 
 handler = TimedRotatingFileHandler(
     filename="log/crawler.log",
@@ -21,4 +22,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
-asyncio.run(run_crawler(headless=True))
+
+if __name__ == "__main__":
+    pass

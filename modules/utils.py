@@ -1,4 +1,5 @@
 import time
+import logging
 import urllib3
 import requests
 from typing import Dict, Any
@@ -20,3 +21,7 @@ def http_request(url: str, retry=5):
                 return
 
             time.sleep(0.5)
+
+
+def write_log(message: str):
+    logging.warning(message)

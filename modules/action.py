@@ -1,4 +1,4 @@
-from utils import http_request
+from utils import http_request, write_log
 from parser import (
     match_heading,
     parse_computed_descriptors,
@@ -8,23 +8,24 @@ from dto import CrawledData
 
 
 def get_pubchem_data(CID: int) -> CrawledData | None:
-    compound_name = None
-    IUPAC_name = None
-    InChI = None
-    SMILES = None
-    CASRN = None
+    IUPAC_name: str | None = None
+    InChI: str | None = None
+    SMILES: str | None = None
+    CASRN: str | None = None
     experimental_property_data = []
     available_properties = []
 
     data = http_request(
         f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{CID}/JSON"
     )
-    if data:
-        record = data["Record"]
+    try:
+        if not data:
+            raise ValueError("HTTP reqeust body not found")
 
-        compound_name = record.get("RecordTitle")
-        record_section = record.get("Section")
-        references = record.get("Reference")
+        record = data["Record"]
+        compound_name = record["RecordTitle"]
+        record_section = record["Section"]
+        references = record["Reference"]
 
         # ==================== Parse Names and Identifiers ====================
         names_and_identifiers = match_heading("Names and Identifiers", record_section)
@@ -144,3 +145,5 @@ def get_pubchem_data(CID: int) -> CrawledData | None:
             }
 
             return crawled_result
+    except Exception as e:
+        write_log(f"ERROR__000__UNHANDLED_RESPONSE_TYPE: {e}")
