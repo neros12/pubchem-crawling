@@ -38,7 +38,7 @@ def get_pubchem_data(CID: int) -> CrawledData | None:
             if computed_descriptors:
                 computed_descriptors_section = computed_descriptors.get("Section")
                 IUPAC_name = parse_computed_descriptors(
-                    "IUPAC name", computed_descriptors_section
+                    "IUPAC Name", computed_descriptors_section
                 )
                 InChI = parse_computed_descriptors(
                     "InChI", computed_descriptors_section
