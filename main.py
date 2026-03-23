@@ -24,6 +24,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
+logging.info("============= 작업 시작 =============")
 
 starting_cid = utils.get_checkpoint()
 ending_cid = 177929229
