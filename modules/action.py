@@ -1,10 +1,10 @@
-from utils import http_request, write_log
-from parser import (
+from .utils import http_request, write_log
+from .parser import (
     match_heading,
     parse_computed_descriptors,
     parse_experimental_properties,
 )
-from dto import CrawledData
+from .dto import CrawledData
 
 
 def get_pubchem_data(CID: int) -> CrawledData | None:
